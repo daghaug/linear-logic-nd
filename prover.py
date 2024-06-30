@@ -400,22 +400,22 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
 parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
 parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
-parser.add_argument('-n', '--all', action = 'store_true', default = False)
+parser.add_argument('-a', '--all', action = 'store_true', default = False)
         
 args = parser.parse_args()
 
-#data = args.infile.read()
-#print(data)
+
 
 formulae = args.infile.read().split(",")
-print(formulae, file=sys.stderr)
 l = [Formula.new(t) for t in formulae[0:-1]]
 r = Formula.new(formulae[-1])
 s = Sequent(l, r)
+print(f"Searching a proof of {s.to_s}")
+
 
 proofs = s.prove()
 if proofs == []:
-    print("Not a theorem", file=sys.stderr())
+    print("Not a theorem", file=sys.stderr)
     exit()
 else:
     args.outfile.write("\\documentclass[landscape]{article}\n")
@@ -440,12 +440,13 @@ else:
     args.outfile.write("\\end{document}")
     args.outfile.close()
 
-    os.system(f"pdflatex {args.outfile.name}")
-  
-#latex(["x : A", "Q : A -o B", "B"], "proof0.tex")
-#latex(["x: A", "V: A -o B -o C", "y: B", "C"], "proof1.tex")
-#latex(["x:A", "V:A -o B -o C -o D", "y:B", "z:C", "D"], "proof2.tex")
-#latex(["V:A -o B -o T", "Q1:(A -o T) -o T", "Q2:(B -o T) -o T", "T"], "proof3.tex")
-#latex(["V: (A * B) -o T", "x : A", "y : B", "T"], "proof4.tex")
-#latex(["V: A -o B -o T", "<x,y> : A * B", "T"], "proof5.tex") 
-# latex(["V: E1 -o E2 -o T", "Q1:(E1 -o T) -o T", "Q2:(E2 -o (T * l)) -o T", "L: E1 -o (E1 * l)", "T"], "proof6.tex") 
+    os.system(f"pdflatex {args.outfile.name} 1> /dev/null")
+    print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
+    
+#"x : A, Q : A -o B, B"
+#"x: A, V: A -o B -o C, y: B, "C"
+#"x:A, V:A -o B -o C -o D, y:B, z:C, D"
+#"V:A -o B -o T, Q1:(A -o T) -o T, Q2:(B -o T) -o T, T"
+#"V: (A * B) -o T, x : A, y : B, T"
+#"V: A -o B -o T, <x,y> : A * B, T"
+#"V: E1 -o E2 -o T, Q1:(E1 -o T) -o T, Q2:(E2 -o (T * l)) -o T, L: E1 -o (E1 * l), T"

@@ -6,9 +6,6 @@ from copy import *
 
 
 
-# TODO:
-# - implement the 1 constant?
-
 class Formula:
     # TODO: error handling. It seems this parser is happy as long as it can parse part of the string.
     variable = Word(alphas, alphanums)

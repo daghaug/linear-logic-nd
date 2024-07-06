@@ -1,4 +1,4 @@
-from pyparsing import *
+from pyparsing import Word, infixNotation, alphas, alphanums, opAssoc
 from itertools import *
 import os, sys
 import argparse
@@ -7,7 +7,6 @@ from copy import *
 
 
 class Formula:
-    # TODO: error handling. It seems this parser is happy as long as it can parse part of the string.
     variable = Word(alphas, alphanums)
     one = Word("1")
     expr = infixNotation(

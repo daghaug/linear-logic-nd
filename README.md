@@ -13,7 +13,7 @@ This is a prover for the multiplicative fragment (tensor, implication) of linear
 
 ## Syntax
 
-The prover excepts a comma separated list of linear logic formulae. The last formula is interpreted as the proof goals and any preceding formulae as the premises of the proof. The connectives are written `-o` (linear implication) and `*` (multiplicative conjunction). Proof terms for the premises can be given separated by `:`, e.g. `V : e -o t`. 
+The prover expects a comma separated list of linear logic formulae. The last formula is interpreted as the proof goals and any preceding formulae as the premises of the proof. The connectives are written `-o` (linear implication) and `*` (multiplicative conjunction). Proof terms for the premises can be given separated by `:`, e.g. `V : e -o t`. 
 
 ## Example usage
 

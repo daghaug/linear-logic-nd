@@ -12,8 +12,9 @@ from copy import *
 class Formula:
     # TODO: error handling. It seems this parser is happy as long as it can parse part of the string.
     variable = Word(alphas, alphanums)
+    one = Word("1")
     expr = infixNotation(
-        variable,
+        variable | one,
         [("-o", 2, opAssoc.RIGHT),
          ("*", 2, opAssoc.RIGHT)])
 
@@ -28,9 +29,11 @@ class Formula:
             formula = literal
             # cast the argument as a list if it is a string
         if type(formula) == str:
-            formula = Formula.expr.parseString(formula).asList()[0]
-        # If it is an atom, the parse result will be a string again
-        if type(formula) == str:
+            formula = Formula.expr.parseString(formula, parseAll=True).asList()[0]
+        # If it is an atom or the constant 1, the parse result will be a string again
+        if formula == "1":
+            return One()
+        elif type(formula) == str:
             return Atom(formula, term=term)
         elif len(formula) == 3:
             if formula[1].strip() == "-o":
@@ -38,7 +41,7 @@ class Formula:
             elif formula[1].strip() == "*":
                 return Tensor(formula[0], formula[2], term=term)
         else:
-            raise Exception(f"Cannot parse {formula}") 
+            raise Exception(f"Cannot parse {formula}")
 
     def __eq__(self, other):
         if not isinstance(other, Formula):
@@ -49,24 +52,28 @@ class Formula:
             return False
 
     next_term = 1
-        
+
     @classmethod
     def get_next_term(cls):
         term = "X_{" + str(Formula.next_term) + "}"
         Formula.next_term += 1
         return term
 
-    formula_to_term_map = {}
+    formula_to_term_map = {"1" : "*"}
 
+class One(Formula):
+    def __init__(self):
+        self.to_s = "1"
 
-    
-        
+    def to_latex(self):
+        return "1"
+
 class Atom(Formula):
     def __init__(self, string, term = None):
         self.to_s = string
         if term and (self.to_s not in Formula.formula_to_term_map or Formula.formula_to_term_map[self.to_s] is None):
             Formula.formula_to_term_map[self.to_s] = term
-        
+
     def to_latex(self):
         return self.to_s
 
@@ -80,7 +87,7 @@ class Tensor(Formula):
 
     def to_latex(self):
         return "(" + self.first.to_latex() + " \\otimes " + self.second.to_latex() + ")"
-        
+
 class Implication(Formula):
     def __init__(self, antecedent, consequent, term = None):
         self.antecedent = Formula.new(antecedent)
@@ -88,7 +95,7 @@ class Implication(Formula):
         self.to_s = f"({self.antecedent.to_s} -o {self.consequent.to_s})"
         if term and (self.to_s not in Formula.formula_to_term_map or Formula.formula_to_term_map[self.to_s] is None):
             Formula.formula_to_term_map[self.to_s] = term
-            
+
     def to_latex(self):
         return "(" + self.antecedent.to_latex() + " \\multimap " + self.consequent.to_latex() + ")"
 
@@ -97,23 +104,26 @@ class Sequent:
         for f in left:
             assert isinstance(f, Formula)
         assert isinstance(right, Formula)
-            
+
         self.left = left
         self.right = right
         self.to_s = f"{', '.join(l.to_s for l in left)} |- {right.to_s}"
 
     def from_strings(formulae):
         return Sequent([Formula.new(f) for f in formulae[0:-1]], Formula.new(formulae[-1]))
-            
+
     def to_latex(self):
         return ",".join(l.to_latex() for l in self.left) + " \\vdash " + self.right.to_latex()
 
     def is_axiom(self):
         return len(self.left) == 1 and self.left[0] == self.right
 
+    def is_right_one(self):
+        return self.left == [] and isinstance(self.right, One)
+
     def is_dead_end(self):
-        not self.is_axiom and all(isinstance(f, Atom) for f in left) and isinstance(right, Atom) 
-    
+        not self.is_axiom and all(isinstance(f, Atom) for f in left) and isinstance(right, Atom)
+
     # return a proof tree reducing the formula on the right
     def right_reduce(self):
         # G, A |- B
@@ -128,26 +138,32 @@ class Sequent:
             A = self.right.first
             B = self.right.second
             return [["RightTensor", Sequent(gamma, A), Sequent(delta, B)] for (gamma, delta) in Sequent.split_list(self.left)]
-        
+
     def left_reduce(self, i):
         # G |- A     D, B |- C
         # --------------------
-        #  G, A -o B, D |- C    
+        #  G, A -o B, D |- C
         if isinstance(self.left[i], Implication):
             A = self.left[i].antecedent
             B = self.left[i].consequent
             new_left = self.left[0:i] + self.left[i+1:]
             return [["LeftImp", Sequent(gamma, A), Sequent(delta + [B], self.right)] for (gamma, delta) in Sequent.split_list(new_left)]
-        # G, A, B  |- C  
+        # G, A, B  |- C
         # ---------------
-        # G, A x B |- C   
+        # G, A x B |- C
         elif isinstance(self.left[i], Tensor):
             A = self.left[i].first
             B = self.left[i].second
             G = self.left[0:i] + self.left[i+1:]
             return [["LeftTensor", Sequent(G + [A, B], self.right)]]
-        
-    
+        # G |- C
+        # G, 1 |- C
+        elif isinstance(self.left[i], One):
+            G = self.left[0:i] + self.left[i+1:]
+            return [["LeftOne", Sequent(G, self.right)]]
+
+
+
     # iterate over all complex formulae in the sequent and start
     # proofs from them.  TODO: check if this is a non-reducible
     # sequent that is not an axiom and if so, give up on this proof
@@ -155,14 +171,16 @@ class Sequent:
         proofs = []
         if self.is_axiom():
             return [SequentTree(self, "Axiom", [])]
+        elif self.is_right_one():
+            return [SequentTree(self, "RightOne", [])]
         for i, l in enumerate(self.left):
             if not isinstance(l, Atom):
                 proofs += self.left_reduce(i)
-        if not isinstance(self.right, Atom):
+        if not isinstance(self.right, Atom) and not isinstance(self.right, One):
             proofs += self.right_reduce()
         proof_trees = []
         for proof in proofs:
-            proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]  
+            proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]
         return proof_trees
 
 
@@ -189,6 +207,10 @@ class ProofTree:
             return "$\\otimes L$"
         elif self.rule == "RightTensor":
             return "$\\otimes R$"
+        elif self.rule == "LeftOne":
+            return "$1 L$"
+        elif self.rule == "RightOne":
+            return "$1 R$"
         elif self.rule.startswith("ImpIntro-"):
             idx = self.rule.split("-")[1]
             return f"$\\rightarrow I_{idx}$"
@@ -199,11 +221,15 @@ class ProofTree:
         elif self.rule.startswith("TensorElim-"):
             idx1, idx2 = self.rule.split("-")[-2:]
             return "$\\otimes E_{" + f"{idx1},{idx2}" + "}$"
+        elif self.rule == "OneElim":
+            return "$1 E$"
+        elif self.rule == "OneIntro":
+            return "$1 I$"
         elif self.rule == "":
             return ""
         else:
             raise Exception(f"Unknown rule {self.rule}")
-    
+
     def latex_tree(self):
         return "\\begin{scprooftree}{0.8}\n" + self.to_latex() + "\\end{scprooftree}"
 
@@ -212,7 +238,7 @@ class ProofTree:
             if isinstance(self, NDTree):
                 child_latex = ""
             elif isinstance(self, SequentTree):
-                child_latex = "\\AxiomC{}\n"                
+                child_latex = "\\AxiomC{}\n"
         else:
             child_latex = "\n".join(c.to_latex() for c in self.children) + "\n"
 
@@ -234,7 +260,7 @@ class ProofTree:
         return child_latex + "\n" + "\\RightLabel{\\tiny " + self.label_to_latex() + "}\n" + inf_rule + "{$" + formula + "$}"
 
 
-    
+
 class NDTree(ProofTree):
 
     next_hypothesis_index = 1
@@ -244,7 +270,7 @@ class NDTree(ProofTree):
         i = NDTree.next_hypothesis_index
         NDTree.next_hypothesis_index += 1
         return i
-    
+
     def __init__(self, formula, rule, children, hypothesis=None):
         assert isinstance(formula, Formula)
         assert isinstance(children, list)
@@ -254,7 +280,7 @@ class NDTree(ProofTree):
         self.rule = rule
         self.children = children
         self.hypothesis = hypothesis
-        
+
     def leaf_nodes(self):
         if self.children == []:
             return [self]
@@ -285,7 +311,7 @@ class NDTree(ProofTree):
 
     def to_latex(self):
         return super().to_latex()
-        
+
     def is_identical(self, other_nd_tree):
         return self.term() == other_nd_tree.term()
 
@@ -296,7 +322,7 @@ class NDTree(ProofTree):
             if nd_tree.is_normal() and not any(t.is_identical(nd_tree) for t in res):
                 res.append(nd_tree)
         return res
-    
+
     def term(self):
         if self.node.to_s in Formula.formula_to_term_map and not Formula.formula_to_term_map[self.node.to_s] is None:
             return Formula.formula_to_term_map[self.node.to_s]
@@ -309,7 +335,7 @@ class NDTree(ProofTree):
         elif self.rule.startswith("ImpIntro-"):
             idx = int(self.rule.split("-")[1])
             var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
-            return f"\\lambda {var}.{self.children[0].term()}" 
+            return f"\\lambda {var}.{self.children[0].term()}"
         elif self.rule == "TensorIntro":
             return f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
         elif self.rule.startswith("TensorElim-"):
@@ -318,22 +344,25 @@ class NDTree(ProofTree):
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
             var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
             return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
+        elif self.rule == "OneElim":
+            return self.children[1].term()
+        # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
         elif Formula.formula_to_term_map[self.node.to_s] is None:
             return ""
         else:
             raise Exception("What?")
-        
+
     def label_to_latex(self):
         return super().label_to_latex()
 
-    
+
 class SequentTree(ProofTree):
     def __init__(self, sequent, rule, children):
         self.node = sequent
         self.rule = rule
         self.children = children
         self.to_s = self.node.to_s + f"\n----{self.rule}----\n" + "\t".join(c.to_s for c in self.children)
-        
+
     def label_to_latex(self):
         return super().label_to_latex()
 
@@ -359,16 +388,21 @@ class SequentTree(ProofTree):
         left = self.children[0].node.left[-2].to_s
         right = self.children[0].node.left[-1].to_s
         return Tensor(left, right)
-    
+
     def to_nd(self):
         if self.rule == "Axiom":
             return NDTree(self.node.right, "Id", [])
+        if self.rule == "RightOne":
+            return NDTree(self.node.right, "OneIntro", [])
+        if self.rule == "LeftOne":
+            D = self.children[0].to_nd()
+            return NDTree(self.node.right, "OneElim", [NDTree(One(), "", []), D])
         if self.rule == "RightImp":
             D = self.children[0].to_nd()
             a_point = D.find_formula_on_leaf_node(self.node.right.antecedent)
             i = NDTree.get_next_index()
             a_point.hypothesis = i
-            return NDTree(self.node.right, f"ImpIntro-{i}", [D]) 
+            return NDTree(self.node.right, f"ImpIntro-{i}", [D])
         if self.rule == "LeftImp":
             implication = self.find_implication()
             D0 = self.children[0].to_nd()
@@ -401,7 +435,7 @@ parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), de
 parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
 parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
 parser.add_argument('-a', '--all', action = 'store_true', default = False)
-        
+
 args = parser.parse_args()
 
 
@@ -436,13 +470,13 @@ else:
     for i, nd_tree in enumerate(nd_trees):
         args.outfile.write(f"\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\")
         args.outfile.write(nd_tree.latex_tree())
-        
+
     args.outfile.write("\\end{document}")
     args.outfile.close()
 
     os.system(f"pdflatex {args.outfile.name} 1> /dev/null")
     print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
-    
+
 #"x : A, Q : A -o B, B"
 #"x: A, V: A -o B -o C, y: B, "C"
 #"x:A, V:A -o B -o C -o D, y:B, z:C, D"

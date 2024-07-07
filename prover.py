@@ -2,9 +2,7 @@ from pyparsing import Word, infixNotation, alphas, alphanums, opAssoc
 from itertools import *
 import os, sys
 import argparse
-from copy import *
-
-
+from copy import deepcopy
 
 class Formula:
     variable = Word(alphas, alphanums)
@@ -161,19 +159,23 @@ class Sequent:
 
 
     # iterate over all complex formulae in the sequent and start
-    # proofs from them.  TODO: check if this is a non-reducible
-    # sequent that is not an axiom and if so, give up on this proof
+    # proofs from them.
     def prove(self):
         proofs = []
+        # stop recursion if we are at an axiom or a |- 1 sequent
         if self.is_axiom():
             return [SequentTree(self, "Axiom", [])]
         elif self.is_right_one():
             return [SequentTree(self, "RightOne", [])]
+        # else, reduce at all possible points left and right
         for i, l in enumerate(self.left):
             if not isinstance(l, Atom):
                 proofs += self.left_reduce(i)
         if not isinstance(self.right, Atom) and not isinstance(self.right, One):
             proofs += self.right_reduce()
+        # if no reduction is possible, we have a failed proof, so
+        # nothing gets added to the proof list
+        # Now, recurse on the non-terminated trees we have
         proof_trees = []
         for proof in proofs:
             proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]

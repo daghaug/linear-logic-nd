@@ -4,6 +4,7 @@ import os, sys
 import argparse
 from copy import deepcopy
 
+
 class Formula:
     variable = Word(alphas, alphanums)
     one = Word("1")
@@ -178,6 +179,7 @@ class Sequent:
         # Now, recurse on the non-terminated trees we have
         proof_trees = []
         for proof in proofs:
+            # proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*pool.map(prove, proof[1:]))]
             proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]
         return proof_trees
 
@@ -424,62 +426,63 @@ class SequentTree(ProofTree):
             return(NDTree(self.node.right, f"TensorElim-{i}-{j}", [NDTree(tensor, "", []), D0]))
 
 
+if __name__ == "__main__":
 
-parser = argparse.ArgumentParser(
-    prog = 'prover.py',
-    description = 'A prover with natural deduction proofs for linear logic')
+    parser = argparse.ArgumentParser(
+        prog = 'prover.py',
+        description = 'A prover with natural deduction proofs for linear logic')
 
-parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
-parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
-parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
-parser.add_argument('-a', '--all', action = 'store_true', default = False)
+    parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
+    parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
+    parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
+    parser.add_argument('-a', '--all', action = 'store_true', default = False)
 
-args = parser.parse_args()
-
-
-
-formulae = args.infile.read().split(",")
-l = [Formula.new(t) for t in formulae[0:-1]]
-r = Formula.new(formulae[-1])
-s = Sequent(l, r)
-print(f"Searching a proof of {s.to_s}...")
+    args = parser.parse_args()
 
 
-proofs = s.prove()
-print("Done", file=sys.stderr)
 
-if proofs == []:
-    print("Not a theorem", file=sys.stderr)
-    exit()
-else:
-    args.outfile.write("\\documentclass[landscape]{article}\n")
-    args.outfile.write("""\\newenvironment{scprooftree}[1]%
-                    {\\gdef\\scalefactor{#1}\\begin{center}\\proofSkipAmount \\leavevmode}%
-                    {\\scalebox{\\scalefactor}{\\DisplayProof}\\proofSkipAmount \\end{center} }""")
-    args.outfile.write("\\usepackage{bussproofs,amssymb,graphicx}\n")
-    args.outfile.write("\\usepackage[vmargin=1cm,hmargin=1cm]{geometry}")
-    args.outfile.write("\\begin{document}\n")
+    formulae = args.infile.read().split(",")
+    l = [Formula.new(t) for t in formulae[0:-1]]
+    r = Formula.new(formulae[-1])
+    s = Sequent(l, r)
+    print(f"Searching a proof of {s.to_s}...")
 
-    if args.sequents:
-        for i, p in enumerate(proofs):
-            args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
-            args.outfile.write(p.latex_tree())
-    print("Converting to natural deduction...", file=sys.stderr)
-    nd_trees = [p.to_nd() for p in proofs]
+
+    proofs = s.prove()
     print("Done", file=sys.stderr)
-    if not args.all:
-        print("Normalizing...", file=sys.stderr)
-        nd_trees = NDTree.reduce_proofs(nd_trees)
+
+    if proofs == []:
+        print("Not a theorem", file=sys.stderr)
+        exit()
+    else:
+        args.outfile.write("\\documentclass[landscape]{article}\n")
+        args.outfile.write("""\\newenvironment{scprooftree}[1]%
+                {\\gdef\\scalefactor{#1}\\begin{center}\\proofSkipAmount \\leavevmode}%
+                {\\scalebox{\\scalefactor}{\\DisplayProof}\\proofSkipAmount \\end{center} }""")
+        args.outfile.write("\\usepackage{bussproofs,amssymb,graphicx}\n")
+        args.outfile.write("\\usepackage[vmargin=1cm,hmargin=1cm]{geometry}")
+        args.outfile.write("\\begin{document}\n")
+
+        if args.sequents:
+            for i, p in enumerate(proofs):
+                args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
+                args.outfile.write(p.latex_tree())
+        print("Converting to natural deduction...", file=sys.stderr)
+        nd_trees = [p.to_nd() for p in proofs]
         print("Done", file=sys.stderr)
-    for i, nd_tree in enumerate(nd_trees):
-        args.outfile.write(f"\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\")
-        args.outfile.write(nd_tree.latex_tree())
+        if not args.all:
+            print("Normalizing...", file=sys.stderr)
+            nd_trees = NDTree.reduce_proofs(nd_trees)
+            print("Done", file=sys.stderr)
+        for i, nd_tree in enumerate(nd_trees):
+            args.outfile.write(f"\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\")
+            args.outfile.write(nd_tree.latex_tree())
 
-    args.outfile.write("\\end{document}")
-    args.outfile.close()
+        args.outfile.write("\\end{document}")
+        args.outfile.close()
 
-    os.system(f"pdflatex {args.outfile.name}")
-    print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
+        os.system(f"pdflatex {args.outfile.name}")
+        print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
 
 #"x : A, Q : A -o B, B"
 #"x: A, V: A -o B -o C, y: B, "C"

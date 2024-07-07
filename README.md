@@ -1,6 +1,6 @@
 # Linear logic prover
 
-This is a prover for the multiplicative fragment (tensor, implication) of linear logic. The proof search is done in sequent calcucus with no heuristics, to find all possible proofs. The prover is therefore relatively slow. It then converts those proofs to natural deduction proofs with proof terms. It optionally normalises and discards any identical proofs (since the mapping from sequent-style proofs to natural deduction proofs is many-to-one). The resulting proofs are written to a latex file which is compiled.
+This is a prover for the multiplicative intuitionistic linear logic (with tensor, implication and 1). The proof search is done in sequent calcucus with no heuristics, to find all possible proofs. The prover is therefore relatively slow. It then converts those proofs to natural deduction proofs with proof terms. It optionally normalises and discards any identical proofs (since the mapping from sequent-style proofs to natural deduction proofs is many-to-one). The resulting proofs are written to a latex file which is compiled.
 
 ## Options
 
@@ -13,12 +13,14 @@ This is a prover for the multiplicative fragment (tensor, implication) of linear
 
 ## Syntax
 
-The prover expects a comma separated list of linear logic formulae. The last formula is interpreted as the proof goals and any preceding formulae as the premises of the proof. The connectives are written `-o` (linear implication) and `*` (multiplicative conjunction). Proof terms for the premises can be given separated by `:`, e.g. `V : e -o t`. 
+The prover expects a comma separated list of linear logic formulae. The last formula is interpreted as the proof goals and any preceding formulae as the premises of the proof. The connectives are written `-o` (linear implication) and `*` (multiplicative conjunction). Atomic formulae must start with a letter and be followed by alphanumeric characters. Unit (the identity for tensor) is written `1`. Proof terms for the premises can be given separated by `:`, e.g. `V : e -o t`. 
 
 ## Example usage
 
 `echo "A -o A " | python prover.py` proves `A -o A` from no premises.
 
 `echo "V:A -o B -o T, Q1:(A -o T) -o T, Q2:(B -o T) -o T, T"| python prover.py ` proves `T` from `A -o B -o T`, `(A -o T) -o T` and `(B -o T) -o T`.
+
+`echo "(A * 1) -o A" | python prover.py` proves `(A * 1) -o A` from no premises. 
 
 `echo "V: E1 -o E2 -o T, Q1:(E1 -o T) -o T, Q2:(E2 -o (T * l)) -o T, L: E1 -o (E1 * l), T" | python prover.py ` proves `T` from `E1 -o E2 -o T`, `(E1 -o T) -o T`, `(E2 -o (T * l)) -o T` and `E1 -o (E1 * l)`. (This takes a while.)

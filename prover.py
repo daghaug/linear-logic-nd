@@ -1,5 +1,5 @@
 from pyparsing import Word, infixNotation, alphas, alphanums, opAssoc
-from itertools import *
+from itertools import product
 import os, sys
 import argparse
 from copy import deepcopy
@@ -179,7 +179,6 @@ class Sequent:
         # Now, recurse on the non-terminated trees we have
         proof_trees = []
         for proof in proofs:
-            # proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*pool.map(prove, proof[1:]))]
             proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]
         return proof_trees
 

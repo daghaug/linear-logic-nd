@@ -440,10 +440,12 @@ formulae = args.infile.read().split(",")
 l = [Formula.new(t) for t in formulae[0:-1]]
 r = Formula.new(formulae[-1])
 s = Sequent(l, r)
-print(f"Searching a proof of {s.to_s}")
+print(f"Searching a proof of {s.to_s}...")
 
 
 proofs = s.prove()
+print("Done", file=sys.stderr)
+
 if proofs == []:
     print("Not a theorem", file=sys.stderr)
     exit()
@@ -460,9 +462,13 @@ else:
         for i, p in enumerate(proofs):
             args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
             args.outfile.write(p.latex_tree())
+    print("Converting to natural deduction...", file=sys.stderr)
     nd_trees = [p.to_nd() for p in proofs]
+    print("Done", file=sys.stderr)
     if not args.all:
+        print("Normalizing...", file=sys.stderr)
         nd_trees = NDTree.reduce_proofs(nd_trees)
+        print("Done", file=sys.stderr)
     for i, nd_tree in enumerate(nd_trees):
         args.outfile.write(f"\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\")
         args.outfile.write(nd_tree.latex_tree())
@@ -470,7 +476,7 @@ else:
     args.outfile.write("\\end{document}")
     args.outfile.close()
 
-    os.system(f"pdflatex {args.outfile.name} 1> /dev/null")
+    os.system(f"pdflatex {args.outfile.name}")
     print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
 
 #"x : A, Q : A -o B, B"

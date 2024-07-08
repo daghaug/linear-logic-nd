@@ -312,9 +312,6 @@ class NDTree(ProofTree):
         return super().to_latex()
 
     def is_identical(self, other_nd_tree):
-        # really weird: adding this line gives us a SINGLE proof for echo "(C * (C * C)) -o ((C * C) * C), ((C*C)*C), ((C*C)*C) " |python prover.py, which is what we should have! But why does it matter that we print it out?
-        #        print(f"Comparing tree of term {self.term()} with tree of term {other_nd_tree.term()}: {self.term() == other_nd_tree.term()}")
-        # it has something to do with how we generate new terms, for if we give ((C*C)*C) a name, we only get one proof in any case
         return self.term() == other_nd_tree.term()
 
     @classmethod
@@ -345,10 +342,7 @@ class NDTree(ProofTree):
             idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
             print(idx1, idx2, file=sys.stderr)
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
-            try:
-                var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
-            except:
-                var2 = "WHAT"
+            var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
             return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
         elif self.rule == "OneElim":
             return self.children[1].term()

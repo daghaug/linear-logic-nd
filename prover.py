@@ -286,8 +286,8 @@ class NDTree(ProofTree):
         else:
             return [l for ls in self.children for l in ls.leaf_nodes()]
 
-    def find_formula_on_leaf_node(self, formula):
-        return [l for l in self.leaf_nodes() if l.node == formula][0]
+    def find_formula_on_leaf_node(self, formula, only_nonhypotheticals=False):
+        return [l for l in self.leaf_nodes() if l.node == formula and (l.hypothesis is None or not only_nonhypotheticals)][0]
 
     def append_children(self, children, new_rule=None):
         assert self.children == []
@@ -312,6 +312,9 @@ class NDTree(ProofTree):
         return super().to_latex()
 
     def is_identical(self, other_nd_tree):
+        # really weird: adding this line gives us a SINGLE proof for echo "(C * (C * C)) -o ((C * C) * C), ((C*C)*C), ((C*C)*C) " |python prover.py, which is what we should have! But why does it matter that we print it out?
+        #        print(f"Comparing tree of term {self.term()} with tree of term {other_nd_tree.term()}: {self.term() == other_nd_tree.term()}")
+        # it has something to do with how we generate new terms, for if we give ((C*C)*C) a name, we only get one proof in any case
         return self.term() == other_nd_tree.term()
 
     @classmethod
@@ -323,7 +326,7 @@ class NDTree(ProofTree):
         return res
 
     def term(self):
-        if self.node.to_s in Formula.formula_to_term_map and not Formula.formula_to_term_map[self.node.to_s] is None:
+        if self.children == [] and self.node.to_s in Formula.formula_to_term_map and not Formula.formula_to_term_map[self.node.to_s] is None:
             return Formula.formula_to_term_map[self.node.to_s]
         elif self.children == []:
             Formula.formula_to_term_map[self.node.to_s] = Formula.get_next_term()
@@ -340,8 +343,12 @@ class NDTree(ProofTree):
         elif self.rule.startswith("TensorElim-"):
             a = self.children[0].term()
             idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
+            print(idx1, idx2, file=sys.stderr)
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
-            var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
+            try:
+                var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
+            except:
+                var2 = "WHAT"
             return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
         elif self.rule == "OneElim":
             return self.children[1].term()
@@ -398,7 +405,7 @@ class SequentTree(ProofTree):
             return NDTree(self.node.right, "OneElim", [NDTree(One(), "", []), D])
         if self.rule == "RightImp":
             D = self.children[0].to_nd()
-            a_point = D.find_formula_on_leaf_node(self.node.right.antecedent)
+            a_point = D.find_formula_on_leaf_node(self.node.right.antecedent, only_nonhypotheticals=True)
             i = NDTree.get_next_index()
             a_point.hypothesis = i
             return NDTree(self.node.right, f"ImpIntro-{i}", [D])
@@ -416,10 +423,10 @@ class SequentTree(ProofTree):
         if self.rule == "LeftTensor":
             D0 = self.children[0].to_nd()
             tensor = self.find_tensor()
-            a_point = D0.find_formula_on_leaf_node(tensor.first)
+            a_point = D0.find_formula_on_leaf_node(tensor.first, only_nonhypotheticals=True)
             i = NDTree.get_next_index()
             a_point.hypothesis = i
-            b_point = D0.find_formula_on_leaf_node(tensor.second)
+            b_point = D0.find_formula_on_leaf_node(tensor.second, only_nonhypotheticals=True)
             j = NDTree.get_next_index()
             b_point.hypothesis = j
             return(NDTree(self.node.right, f"TensorElim-{i}-{j}", [NDTree(tensor, "", []), D0]))

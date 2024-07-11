@@ -3,6 +3,11 @@ from itertools import product
 import os, sys
 import argparse
 from copy import deepcopy
+from collections import defaultdict
+
+
+
+# Why is there more formula creation going on when we convert to ND? Should just be reusing the formulae, no?
 
 
 class Formula:
@@ -25,6 +30,7 @@ class Formula:
             # cast the argument as a list if it is a string
         if type(formula) == str:
             formula = Formula.expr.parseString(formula, parseAll=True).asList()[0]
+        print(f"The formula is {formula} and the term is {term}")
         # If it is an atom or the constant 1, the parse result will be a string again
         if formula == "1":
             return One()
@@ -54,20 +60,18 @@ class Formula:
         Formula.next_term += 1
         return term
 
-    formula_to_term_map = {"1" : "*"}
-
 class One(Formula):
     def __init__(self):
         self.to_s = "1"
-
+        self.term = "*"
+        
     def to_latex(self):
         return "1"
 
 class Atom(Formula):
     def __init__(self, string, term = None):
         self.to_s = string
-        if term and (self.to_s not in Formula.formula_to_term_map or Formula.formula_to_term_map[self.to_s] is None):
-            Formula.formula_to_term_map[self.to_s] = term
+        self.term = term
 
     def to_latex(self):
         return self.to_s
@@ -77,9 +81,8 @@ class Tensor(Formula):
         self.first  = Formula.new(first)
         self.second = Formula.new(second)
         self.to_s = f"({self.first.to_s} * {self.second.to_s})"
-        if term and (self.to_s not in Formula.formula_to_term_map or Formula.formula_to_term_map[self.to_s] is None):
-            Formula.formula_to_term_map[self.to_s] = term
-
+        self.term = term
+        
     def to_latex(self):
         return "(" + self.first.to_latex() + " \\otimes " + self.second.to_latex() + ")"
 
@@ -88,9 +91,8 @@ class Implication(Formula):
         self.antecedent = Formula.new(antecedent)
         self.consequent = Formula.new(consequent)
         self.to_s = f"({self.antecedent.to_s} -o {self.consequent.to_s})"
-        if term and (self.to_s not in Formula.formula_to_term_map or Formula.formula_to_term_map[self.to_s] is None):
-            Formula.formula_to_term_map[self.to_s] = term
-
+        self.term = term
+        
     def to_latex(self):
         return "(" + self.antecedent.to_latex() + " \\multimap " + self.consequent.to_latex() + ")"
 
@@ -260,6 +262,12 @@ class ProofTree:
 
 
 
+    
+# TODO make sure that hypothetical nodes never get a user-assigned
+# term But since nodes can be made hypotheses during creation, this
+# means we have to create the tree first and *then* assign terms. This
+# also has the advantage that we can more easily turn term assignment
+# on and off
 class NDTree(ProofTree):
 
     next_hypothesis_index = 1
@@ -323,34 +331,43 @@ class NDTree(ProofTree):
         return res
 
     def term(self):
-        if self.children == [] and self.node.to_s in Formula.formula_to_term_map and not Formula.formula_to_term_map[self.node.to_s] is None:
-            return Formula.formula_to_term_map[self.node.to_s]
-        elif self.children == []:
-            Formula.formula_to_term_map[self.node.to_s] = Formula.get_next_term()
-            return Formula.formula_to_term_map[self.node.to_s]
-        elif self.rule == "ImpElim":
-            # the major premise is the 0'th child
-            return self.children[0].term() + "(" + self.children[1].term() + ")"
-        elif self.rule.startswith("ImpIntro-"):
-            idx = int(self.rule.split("-")[1])
-            var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
-            return f"\\lambda {var}.{self.children[0].term()}"
-        elif self.rule == "TensorIntro":
-            return f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
-        elif self.rule.startswith("TensorElim-"):
-            a = self.children[0].term()
-            idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
-            print(idx1, idx2, file=sys.stderr)
-            var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
-            var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
-            return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
-        elif self.rule == "OneElim":
-            return self.children[1].term()
-        # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
-        elif Formula.formula_to_term_map[self.node.to_s] is None:
-            return ""
-        else:
-            raise Exception("What?")
+        return ""
+
+    def assign_terms(self):
+        print(f"I have the following leaf nodes: {[f"{n.node.term} : {n.node.to_s}" for n in self.leaf_nodes()]}")
+        return self
+
+    
+    
+    # def term(self):
+    #     if self.children == [] and self.node.to_s in Formula.formula_to_term_map and not Formula.formula_to_term_map[self.node.to_s] is None:
+    #         return Formula.formula_to_term_map[self.node.to_s]
+    #     elif self.children == []:
+    #         Formula.formula_to_term_map[self.node.to_s] = Formula.get_next_term()
+    #         return Formula.formula_to_term_map[self.node.to_s]
+    #     elif self.rule == "ImpElim":
+    #         # the major premise is the 0'th child
+    #         return self.children[0].term() + "(" + self.children[1].term() + ")"
+    #     elif self.rule.startswith("ImpIntro-"):
+    #         idx = int(self.rule.split("-")[1])
+    #         var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
+    #         return f"\\lambda {var}.{self.children[0].term()}"
+    #     elif self.rule == "TensorIntro":
+    #         return f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
+    #     elif self.rule.startswith("TensorElim-"):
+    #         a = self.children[0].term()
+    #         idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
+    #         print(idx1, idx2, file=sys.stderr)
+    #         var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
+    #         var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
+    #         return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
+    #     elif self.rule == "OneElim":
+    #         return self.children[1].term()
+    #     # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
+    #     elif Formula.formula_to_term_map[self.node.to_s] is None:
+    #         return ""
+    #     else:
+    #         raise Exception("What?")
 
     def label_to_latex(self):
         return super().label_to_latex()
@@ -377,21 +394,26 @@ class SequentTree(ProofTree):
     # tree nodes with the left implication rule.  TODO: for now,
     # convert to strings, since the implication constructor requires
     # strings...
+    # TODO: this creates a new implication (and a new tensor), thus potentially loosing the proof term
     def find_implication(self):
         antecedent = self.children[0].node.right.to_s
         consequent = self.children[1].node.left[-1].to_s
-        return Implication(antecedent, consequent)
+        implication = [f for f in self.node.left if f.to_s == Implication(antecedent, consequent).to_s][0]
+        return implication
 
     # Extracts the active tensor. Should only be called on proof tree
     # nodes with the right tensor rule.
     def find_tensor(self):
         left = self.children[0].node.left[-2].to_s
         right = self.children[0].node.left[-1].to_s
-        return Tensor(left, right)
+        tensor = [f for f in self.node.left if f.to_s == Tensor(left, right).to_s][0]
+        return tensor
 
     def to_nd(self):
+        print("I am building a tree")
         if self.rule == "Axiom":
-            return NDTree(self.node.right, "Id", [])
+            # pick the left side of the sequent, as this has the term
+            return NDTree(self.node.left[0], "Id", [])
         if self.rule == "RightOne":
             return NDTree(self.node.right, "OneIntro", [])
         if self.rule == "LeftOne":
@@ -468,7 +490,7 @@ if __name__ == "__main__":
                 args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
                 args.outfile.write(p.latex_tree())
         print("Converting to natural deduction...", file=sys.stderr)
-        nd_trees = [p.to_nd() for p in proofs]
+        nd_trees = [p.to_nd().assign_terms() for p in proofs]
         print("Done", file=sys.stderr)
         if not args.all:
             print("Normalizing...", file=sys.stderr)

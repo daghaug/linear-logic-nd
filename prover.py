@@ -299,6 +299,7 @@ class NDTree(ProofTree):
         if new_rule:
             self.rule = new_rule
 
+    # we may have to check alpha equivalence here. :( But maybe better, just reuse variables in different trees, e.g. by making get_next_term an instance method in the NDTree class
     def is_normal(self):
         # Major premise is the left [0] daughter
         if self.rule == "ImpElim" and self.children[0].rule.startswith("ImpIntro"):
@@ -318,6 +319,7 @@ class NDTree(ProofTree):
     def is_identical(self, other_nd_tree):
         return self.term() == other_nd_tree.term()
 
+    
     @classmethod
     def reduce_proofs(cls, nd_trees):
         res = []
@@ -326,19 +328,10 @@ class NDTree(ProofTree):
                 res.append(nd_tree)
         return res
 
-    def term(self):
-        return ""
-
-    def assign_terms(self):
-#        print(f"I have the following leaf nodes: {[f"{n.node.term} : {n.node.to_s}" for n in self.leaf_nodes()]}")
-        return self
-
-    
     
     def term(self):
         if self.children == [] and self.node.term is not None:
             return self.node.term
-        # Unfortunately, this is now never stored anywhere, so will be generated anew each time
         elif self.children == []:
             self.node.term = Formula.get_next_term()
             return self.node.term
@@ -354,7 +347,6 @@ class NDTree(ProofTree):
         elif self.rule.startswith("TensorElim-"):
             a = self.children[0].term()
             idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
-#            print(idx1, idx2, file=sys.stderr)
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
             var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
             return self.children[1].term().replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
@@ -485,7 +477,7 @@ if __name__ == "__main__":
                 args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
                 args.outfile.write(p.latex_tree())
         print("Converting to natural deduction...", file=sys.stderr)
-        nd_trees = [p.to_nd().assign_terms() for p in proofs]
+        nd_trees = [p.to_nd() for p in proofs]
         print("Done", file=sys.stderr)
         if not args.all:
             print("Normalizing...", file=sys.stderr)

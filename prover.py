@@ -338,8 +338,10 @@ class NDTree(ProofTree):
     def term(self):
         if self.children == [] and self.node.term is not None:
             return self.node.term
+        # Unfortunately, this is now never stored anywhere, so will be generated anew each time
         elif self.children == []:
-            return Formula.get_next_term()
+            self.node.term = Formula.get_next_term()
+            return self.node.term
         elif self.rule == "ImpElim":
             # the major premise is the 0'th child
             return self.children[0].term() + "(" + self.children[1].term() + ")"
@@ -355,7 +357,7 @@ class NDTree(ProofTree):
 #            print(idx1, idx2, file=sys.stderr)
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
             var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
-            return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
+            return self.children[1].term().replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
         elif self.rule == "OneElim":
             return self.children[1].term()
     #     # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map

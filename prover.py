@@ -6,10 +6,6 @@ from copy import deepcopy
 from collections import defaultdict
 
 
-
-# Why is there more formula creation going on when we convert to ND? Should just be reusing the formulae, no?
-
-
 class Formula:
     variable = Word(alphas, alphanums)
     one = Word("1")
@@ -30,7 +26,7 @@ class Formula:
             # cast the argument as a list if it is a string
         if type(formula) == str:
             formula = Formula.expr.parseString(formula, parseAll=True).asList()[0]
-        print(f"The formula is {formula} and the term is {term}")
+#        print(f"The formula is {formula} and the term is {term}")
         # If it is an atom or the constant 1, the parse result will be a string again
         if formula == "1":
             return One()
@@ -334,40 +330,37 @@ class NDTree(ProofTree):
         return ""
 
     def assign_terms(self):
-        print(f"I have the following leaf nodes: {[f"{n.node.term} : {n.node.to_s}" for n in self.leaf_nodes()]}")
+#        print(f"I have the following leaf nodes: {[f"{n.node.term} : {n.node.to_s}" for n in self.leaf_nodes()]}")
         return self
 
     
     
-    # def term(self):
-    #     if self.children == [] and self.node.to_s in Formula.formula_to_term_map and not Formula.formula_to_term_map[self.node.to_s] is None:
-    #         return Formula.formula_to_term_map[self.node.to_s]
-    #     elif self.children == []:
-    #         Formula.formula_to_term_map[self.node.to_s] = Formula.get_next_term()
-    #         return Formula.formula_to_term_map[self.node.to_s]
-    #     elif self.rule == "ImpElim":
-    #         # the major premise is the 0'th child
-    #         return self.children[0].term() + "(" + self.children[1].term() + ")"
-    #     elif self.rule.startswith("ImpIntro-"):
-    #         idx = int(self.rule.split("-")[1])
-    #         var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
-    #         return f"\\lambda {var}.{self.children[0].term()}"
-    #     elif self.rule == "TensorIntro":
-    #         return f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
-    #     elif self.rule.startswith("TensorElim-"):
-    #         a = self.children[0].term()
-    #         idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
-    #         print(idx1, idx2, file=sys.stderr)
-    #         var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
-    #         var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
-    #         return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
-    #     elif self.rule == "OneElim":
-    #         return self.children[1].term()
+    def term(self):
+        if self.children == [] and self.node.term is not None:
+            return self.node.term
+        elif self.children == []:
+            return Formula.get_next_term()
+        elif self.rule == "ImpElim":
+            # the major premise is the 0'th child
+            return self.children[0].term() + "(" + self.children[1].term() + ")"
+        elif self.rule.startswith("ImpIntro-"):
+            idx = int(self.rule.split("-")[1])
+            var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
+            return f"\\lambda {var}.{self.children[0].term()}"
+        elif self.rule == "TensorIntro":
+            return f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
+        elif self.rule.startswith("TensorElim-"):
+            a = self.children[0].term()
+            idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
+#            print(idx1, idx2, file=sys.stderr)
+            var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
+            var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
+            return "\\texttt{let } " + a + " \\texttt{ be } " + f" {var1} \\times {var2} " + " \\texttt{ in } " + self.children[1].term()
+        elif self.rule == "OneElim":
+            return self.children[1].term()
     #     # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
-    #     elif Formula.formula_to_term_map[self.node.to_s] is None:
-    #         return ""
-    #     else:
-    #         raise Exception("What?")
+        else:
+            raise Exception("What?")
 
     def label_to_latex(self):
         return super().label_to_latex()
@@ -398,7 +391,7 @@ class SequentTree(ProofTree):
     def find_implication(self):
         antecedent = self.children[0].node.right.to_s
         consequent = self.children[1].node.left[-1].to_s
-        implication = [f for f in self.node.left if f.to_s == Implication(antecedent, consequent).to_s][0]
+        implication = [f for f in self.node.left if f.to_s == f"({antecedent} -o {consequent})"][0]
         return implication
 
     # Extracts the active tensor. Should only be called on proof tree
@@ -406,11 +399,11 @@ class SequentTree(ProofTree):
     def find_tensor(self):
         left = self.children[0].node.left[-2].to_s
         right = self.children[0].node.left[-1].to_s
-        tensor = [f for f in self.node.left if f.to_s == Tensor(left, right).to_s][0]
+        tensor = [f for f in self.node.left if f.to_s == f"({left} * {right})"][0]
         return tensor
 
     def to_nd(self):
-        print("I am building a tree")
+#        print("I am building a tree")
         if self.rule == "Axiom":
             # pick the left side of the sequent, as this has the term
             return NDTree(self.node.left[0], "Id", [])

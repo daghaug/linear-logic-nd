@@ -48,13 +48,6 @@ class Formula:
         else:
             return False
 
-    next_term = 1
-
-    @classmethod
-    def get_next_term(cls):
-        term = "X_{" + str(Formula.next_term) + "}"
-        Formula.next_term += 1
-        return term
 
 class One(Formula):
     def __init__(self):
@@ -284,6 +277,20 @@ class NDTree(ProofTree):
         self.children = children
         self.hypothesis = hypothesis
 
+
+    next_term = 1
+
+    # having this as an instance method results in the term always being 1, so no good.
+    def get_next_term(cls):
+        term = "X_{" + str(NDTree.next_term) + "}"
+        NDTree.next_term += 1
+        return term
+
+    def assign_terms(self):
+        NDTree.next_term = 1
+        self.term()
+        return self
+    
     def leaf_nodes(self):
         if self.children == []:
             return [self]
@@ -299,7 +306,6 @@ class NDTree(ProofTree):
         if new_rule:
             self.rule = new_rule
 
-    # we may have to check alpha equivalence here. :( But maybe better, just reuse variables in different trees, e.g. by making get_next_term an instance method in the NDTree class
     def is_normal(self):
         # Major premise is the left [0] daughter
         if self.rule == "ImpElim" and self.children[0].rule.startswith("ImpIntro"):
@@ -328,34 +334,33 @@ class NDTree(ProofTree):
                 res.append(nd_tree)
         return res
 
-    
     def term(self):
         if self.children == [] and self.node.term is not None:
-            return self.node.term
+            pass
         elif self.children == []:
-            self.node.term = Formula.get_next_term()
-            return self.node.term
+            self.node.term = self.get_next_term()
         elif self.rule == "ImpElim":
             # the major premise is the 0'th child
-            return self.children[0].term() + "(" + self.children[1].term() + ")"
+            self.node.term = self.children[0].term() + "(" + self.children[1].term() + ")"
         elif self.rule.startswith("ImpIntro-"):
             idx = int(self.rule.split("-")[1])
             var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
-            return f"\\lambda {var}.{self.children[0].term()}"
+            self.node.term = f"\\lambda {var}.{self.children[0].term()}"
         elif self.rule == "TensorIntro":
-            return f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
+            self.node.term = f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
         elif self.rule.startswith("TensorElim-"):
             a = self.children[0].term()
             idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
             var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
-            return self.children[1].term().replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
+            self.node.term = self.children[1].term().replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
         elif self.rule == "OneElim":
-            return self.children[1].term()
+            self.node.term = "\\texttt{let } " + self.children[0].term() + "\\texttt{ be } * \\texttt{ in } " + self.children[1].term()
     #     # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
         else:
             raise Exception("What?")
-
+        return self.node.term
+        
     def label_to_latex(self):
         return super().label_to_latex()
 
@@ -477,7 +482,7 @@ if __name__ == "__main__":
                 args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
                 args.outfile.write(p.latex_tree())
         print("Converting to natural deduction...", file=sys.stderr)
-        nd_trees = [p.to_nd() for p in proofs]
+        nd_trees = [p.to_nd().assign_terms() for p in proofs]
         print("Done", file=sys.stderr)
         if not args.all:
             print("Normalizing...", file=sys.stderr)

@@ -52,7 +52,7 @@ class Formula:
 class One(Formula):
     def __init__(self):
         self.to_s = "1"
-        self.term = "*"
+        self.term = "\\star"
         
     def to_latex(self):
         return "1"
@@ -203,7 +203,7 @@ class ProofTree:
             return "$1 R$"
         elif self.rule.startswith("ImpIntro-"):
             idx = self.rule.split("-")[1]
-            return f"$\\rightarrow I_{idx}$"
+            return "$\\rightarrow I_{" + idx + "}$"
         elif self.rule == "ImpElim":
             return "$\\rightarrow E$"
         elif self.rule == "TensorIntro":
@@ -241,7 +241,8 @@ class ProofTree:
                 inf_rule = "\\AxiomC"
             elif isinstance(self, SequentTree):
                 inf_rule = "\\UnaryInfC"
-        term = self.term()
+        # replace star with \star (a little hack to avoid accidental capture in the replacement done by TensorElim
+        term = self.term().replace("}star", "}\\star")
         if term != "":
             term = term + " : "
         formula = term + self.node.to_latex()
@@ -280,7 +281,6 @@ class NDTree(ProofTree):
 
     next_term = 1
 
-    # having this as an instance method results in the term always being 1, so no good.
     def get_next_term(cls):
         term = "X_{" + str(NDTree.next_term) + "}"
         NDTree.next_term += 1
@@ -335,6 +335,7 @@ class NDTree(ProofTree):
         return res
 
     def term(self):
+        #if self.node.term is not None:
         if self.children == [] and self.node.term is not None:
             pass
         elif self.children == []:
@@ -354,8 +355,11 @@ class NDTree(ProofTree):
             var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
             var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
             self.node.term = self.children[1].term().replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
+        # as a little hack, we use *star* here, and replace it with
+        # \\star only at the end, to avoid it being falsely replaced
+        # by the TensorElim- term rule
         elif self.rule == "OneElim":
-            self.node.term = "\\texttt{let } " + self.children[0].term() + "\\texttt{ be } * \\texttt{ in } " + self.children[1].term()
+            self.node.term = "\\texttt{let } " + self.children[0].term() + "\\texttt{ be }" + "star" + "\\texttt{ in } " + self.children[1].term()
     #     # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
         else:
             raise Exception("What?")
@@ -402,7 +406,6 @@ class SequentTree(ProofTree):
         return tensor
 
     def to_nd(self):
-#        print("I am building a tree")
         if self.rule == "Axiom":
             # pick the left side of the sequent, as this has the term
             return NDTree(self.node.left[0], "Id", [])

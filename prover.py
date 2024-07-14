@@ -3,7 +3,6 @@ from itertools import product
 import os, sys
 import argparse
 from copy import deepcopy
-from collections import defaultdict
 
 
 class Formula:
@@ -26,7 +25,6 @@ class Formula:
             # cast the argument as a list if it is a string
         if type(formula) == str:
             formula = Formula.expr.parseString(formula, parseAll=True).asList()[0]
-#        print(f"The formula is {formula} and the term is {term}")
         # If it is an atom or the constant 1, the parse result will be a string again
         if formula == "1":
             return One()
@@ -53,7 +51,7 @@ class One(Formula):
     def __init__(self):
         self.to_s = "1"
         self.term = "\\star"
-        
+
     def to_latex(self):
         return "1"
 
@@ -71,7 +69,7 @@ class Tensor(Formula):
         self.second = Formula.new(second)
         self.to_s = f"({self.first.to_s} * {self.second.to_s})"
         self.term = term
-        
+
     def to_latex(self):
         return "(" + self.first.to_latex() + " \\otimes " + self.second.to_latex() + ")"
 
@@ -81,7 +79,7 @@ class Implication(Formula):
         self.consequent = Formula.new(consequent)
         self.to_s = f"({self.antecedent.to_s} -o {self.consequent.to_s})"
         self.term = term
-        
+
     def to_latex(self):
         return "(" + self.antecedent.to_latex() + " \\multimap " + self.consequent.to_latex() + ")"
 
@@ -241,7 +239,7 @@ class ProofTree:
                 inf_rule = "\\AxiomC"
             elif isinstance(self, SequentTree):
                 inf_rule = "\\UnaryInfC"
-        # replace star with \star (a little hack to avoid accidental capture in the replacement done by TensorElim
+        # replace star with \star (a little hack to avoid accidental capture in the replacement done by TensorElim)
         term = self.term().replace("}star", "}\\star")
         if term != "":
             term = term + " : "
@@ -251,13 +249,6 @@ class ProofTree:
         return child_latex + "\n" + "\\RightLabel{\\tiny " + self.label_to_latex() + "}\n" + inf_rule + "{$" + formula + "$}"
 
 
-
-    
-# TODO make sure that hypothetical nodes never get a user-assigned
-# term But since nodes can be made hypotheses during creation, this
-# means we have to create the tree first and *then* assign terms. This
-# also has the advantage that we can more easily turn term assignment
-# on and off
 class NDTree(ProofTree):
 
     next_hypothesis_index = 1
@@ -290,7 +281,7 @@ class NDTree(ProofTree):
         NDTree.next_term = 1
         self.term()
         return self
-    
+
     def leaf_nodes(self):
         if self.children == []:
             return [self]
@@ -306,6 +297,7 @@ class NDTree(ProofTree):
         if new_rule:
             self.rule = new_rule
 
+    # TODO: normalisation of tensor elim and intro as well
     def is_normal(self):
         # Major premise is the left [0] daughter
         if self.rule == "ImpElim" and self.children[0].rule.startswith("ImpIntro"):
@@ -322,10 +314,11 @@ class NDTree(ProofTree):
     def to_latex(self):
         return super().to_latex()
 
+    # ideally, check for alpha equivalence here
     def is_identical(self, other_nd_tree):
         return self.term() == other_nd_tree.term()
 
-    
+
     @classmethod
     def reduce_proofs(cls, nd_trees):
         res = []
@@ -335,7 +328,6 @@ class NDTree(ProofTree):
         return res
 
     def term(self):
-        #if self.node.term is not None:
         if self.children == [] and self.node.term is not None:
             pass
         elif self.children == []:
@@ -360,11 +352,11 @@ class NDTree(ProofTree):
         # by the TensorElim- term rule
         elif self.rule == "OneElim":
             self.node.term = "\\texttt{let } " + self.children[0].term() + "\\texttt{ be }" + "star" + "\\texttt{ in } " + self.children[1].term()
-    #     # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
+        # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
         else:
             raise Exception("What?")
         return self.node.term
-        
+
     def label_to_latex(self):
         return super().label_to_latex()
 
@@ -387,10 +379,7 @@ class SequentTree(ProofTree):
         return ""
 
     # Extracts the active implication. Should only be called on proof
-    # tree nodes with the left implication rule.  TODO: for now,
-    # convert to strings, since the implication constructor requires
-    # strings...
-    # TODO: this creates a new implication (and a new tensor), thus potentially loosing the proof term
+    # tree nodes with the left implication rule.
     def find_implication(self):
         antecedent = self.children[0].node.right.to_s
         consequent = self.children[1].node.left[-1].to_s
@@ -500,11 +489,3 @@ if __name__ == "__main__":
 
         os.system(f"pdflatex {args.outfile.name}")
         print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
-
-#"x : A, Q : A -o B, B"
-#"x: A, V: A -o B -o C, y: B, "C"
-#"x:A, V:A -o B -o C -o D, y:B, z:C, D"
-#"V:A -o B -o T, Q1:(A -o T) -o T, Q2:(B -o T) -o T, T"
-#"V: (A * B) -o T, x : A, y : B, T"
-#"V: A -o B -o T, <x,y> : A * B, T"
-#"V: E1 -o E2 -o T, Q1:(E1 -o T) -o T, Q2:(E2 -o (T * l)) -o T, L: E1 -o (E1 * l), T"

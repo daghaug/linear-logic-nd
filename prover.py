@@ -146,17 +146,26 @@ class Sequent:
             G = self.left[0:i] + self.left[i+1:]
             return [["LeftOne", Sequent(G, self.right)]]
 
-
+    # cache holding proofs of sequents
+    cache = dict()
 
     # iterate over all complex formulae in the sequent and start
     # proofs from them.
     def prove(self):
+        # look up if we already did this
+        if self.to_s in Sequent.cache:
+            return Sequent.cache[self.to_s]
+
         proofs = []
         # stop recursion if we are at an axiom or a |- 1 sequent
         if self.is_axiom():
-            return [SequentTree(self, "Axiom", [])]
+            result = [SequentTree(self, "Axiom", [])]
+            Sequent.cache[self.to_s] = result
+            return result
         elif self.is_right_one():
-            return [SequentTree(self, "RightOne", [])]
+            result = [SequentTree(self, "RightOne", [])]
+            Sequent.cache[self.to_s] = result
+            return result
         # else, reduce at all possible points left and right
         for i, l in enumerate(self.left):
             if not isinstance(l, Atom):
@@ -169,6 +178,7 @@ class Sequent:
         proof_trees = []
         for proof in proofs:
             proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]
+        Sequent.cache[self.to_s] = proof_trees
         return proof_trees
 
 

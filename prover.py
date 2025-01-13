@@ -91,7 +91,7 @@ class Sequent:
 
         self.left = left
         self.right = right
-        self.to_s = f"{', '.join(l.to_s for l in left)} |- {right.to_s}"
+        self.to_s = f"{', '.join(f"{l.term + ":" if l.term else ""}{l.to_s}" for l in left)} |- {right.to_s}"
 
     def from_strings(formulae):
         return Sequent([Formula.new(f) for f in formulae[0:-1]], Formula.new(formulae[-1]))
@@ -104,9 +104,6 @@ class Sequent:
 
     def is_right_one(self):
         return self.left == [] and isinstance(self.right, One)
-
-    def is_dead_end(self):
-        not self.is_axiom and all(isinstance(f, Atom) for f in left) and isinstance(right, Atom)
 
     # return a proof tree reducing the formula on the right
     def right_reduce(self):
@@ -229,7 +226,7 @@ class ProofTree:
             raise Exception(f"Unknown rule {self.rule}")
 
     def latex_tree(self):
-        return "\\begin{scprooftree}{0.8}\n" + self.to_latex() + "\\end{scprooftree}"
+        return "\\begin{scprooftree}{" + str(args.rescale) + "}\n" + self.to_latex() + "\\end{scprooftree}"
 
     def to_latex(self):
         if len(self.children) == 0:
@@ -452,6 +449,8 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
     parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
     parser.add_argument('-a', '--all', action = 'store_true', default = False)
+    parser.add_argument('-r', '--rescale', default=0.8)
+    parser.add_argument('-d', '--dump-cache', action = 'store_true', default = False)
 
     args = parser.parse_args()
 
@@ -491,11 +490,14 @@ if __name__ == "__main__":
             nd_trees = NDTree.reduce_proofs(nd_trees)
             print("Done", file=sys.stderr)
         for i, nd_tree in enumerate(nd_trees):
-            args.outfile.write(f"\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\")
+            args.outfile.write(f"\n\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\\n")
             args.outfile.write(nd_tree.latex_tree())
 
         args.outfile.write("\\end{document}")
         args.outfile.close()
+
+        if args.dump_cache:
+            print(Sequent.cache, file=sys.stderr)
 
         os.system(f"pdflatex {args.outfile.name}")
         print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)

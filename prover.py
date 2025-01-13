@@ -226,7 +226,7 @@ class ProofTree:
             raise Exception(f"Unknown rule {self.rule}")
 
     def latex_tree(self):
-        return "\\begin{scprooftree}{" + str(args.rescale) + "}\n" + self.to_latex() + "\\end{scprooftree}"
+        return "\\begin{scprooftree}\n" + self.to_latex() + "\\end{scprooftree}"
 
     def to_latex(self):
         if len(self.children) == 0:
@@ -471,8 +471,9 @@ if __name__ == "__main__":
         exit()
     else:
         args.outfile.write("\\documentclass[landscape]{article}\n")
-        args.outfile.write("""\\newenvironment{scprooftree}[1]%
-                {\\gdef\\scalefactor{#1}\\begin{center}\\proofSkipAmount \\leavevmode}%
+        args.outfile.write("\\def\\proofscalefactor {" + str(args.rescale) + "}\n")
+        args.outfile.write("""\\newenvironment{scprooftree}[0]%
+                {\\gdef\\scalefactor{\\proofscalefactor}\\begin{center}\\proofSkipAmount \\leavevmode}%
                 {\\scalebox{\\scalefactor}{\\DisplayProof}\\proofSkipAmount \\end{center} }""")
         args.outfile.write("\\usepackage{bussproofs,amssymb,graphicx}\n")
         args.outfile.write("\\usepackage[vmargin=1cm,hmargin=1cm]{geometry}")

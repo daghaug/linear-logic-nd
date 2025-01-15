@@ -10,6 +10,9 @@ This is a prover for the multiplicative intuitionistic linear logic (with tensor
 | -o | --outfile | Latex file to which the proof is written. Default = `proof.tex` |
 | -s | --sequents | Prints the original sequent calculus proofs too. |
 | -a | --all | Prints all the natural deduction proofs (no normalisation) |
+| -r | --rescale | Scaling factor for the latex presentation of the proof, useful for big proofs. Default = 0.8 |
+| -d | --dump-cache | Print the cache to `stdout` when done. For debugging |
+
 
 ## Syntax
 
@@ -23,4 +26,4 @@ The prover expects a comma separated list of linear logic formulae. The last for
 
 `echo "(A * 1) -o A" | python prover.py` proves `(A * 1) -o A` from no premises. 
 
-`echo "V: E1 -o E2 -o T, Q1:(E1 -o T) -o T, Q2:(E2 -o (T * l)) -o T, L: E1 -o (E1 * l), T" | python prover.py ` proves `T` from `E1 -o E2 -o T`, `(E1 -o T) -o T`, `(E2 -o (T * l)) -o T` and `E1 -o (E1 * l)`. (This takes a while.)
+`echo "V: E1 -o E2 -o T, Q1:(E1 -o T) -o T, Q2:(E2 -o (T * l)) -o T, L: E1 -o (E1 * l), T" | python prover.py ` proves `T` from `E1 -o E2 -o T`, `(E1 -o T) -o T`, `(E2 -o (T * l)) -o T` and `E1 -o (E1 * l)`. 

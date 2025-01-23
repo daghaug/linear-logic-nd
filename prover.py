@@ -487,12 +487,12 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
     parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
     parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
-    parser.add_argument('-q', '--only_sequents', action = 'store_true', default = False)
+    parser.add_argument('-q', '--only-sequents', action = 'store_true', default = False)
     parser.add_argument('-a', '--all', action = 'store_true', default = False)
     parser.add_argument('-r', '--rescale', default=0.8)
     parser.add_argument('-d', '--dump-cache', action = 'store_true', default = False)
     parser.add_argument('-p', '--polarity', action = 'store_true', default = False)
-    parser.add_argument('-n', '--noprune', action = 'store_true', default = False)
+    parser.add_argument('-n', '--no-prune', action = 'store_true', default = False)
     parser.add_argument('-l', '--latex-off', action = 'store_true', default = False)
 
     args = parser.parse_args()
@@ -511,7 +511,7 @@ if __name__ == "__main__":
         print(f"Goal:\t\t", r.to_s, "\t\t", r.polarity())
         print("Sequent polarities", s.polarity())
 
-    proofs = s.prove(not args.noprune)
+    proofs = s.prove(not args.no_prune)
     print("Done", file=sys.stderr)
 
     if proofs == []:

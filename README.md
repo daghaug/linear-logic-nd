@@ -1,6 +1,8 @@
 # Linear logic prover
 
-This is a prover for the multiplicative intuitionistic linear logic (with tensor, implication and 1). The proof search is done in sequent calcucus with no heuristics, to find all possible proofs. The prover is therefore relatively slow. It then converts those proofs to natural deduction proofs with proof terms. It optionally normalises and discards any identical proofs (since the mapping from sequent-style proofs to natural deduction proofs is many-to-one). The resulting proofs are written to a latex file which is compiled.
+This is a prover for the multiplicative intuitionistic linear logic (with tensor, implication and 1). The proof search is done in sequent calcucus. At each step when the premises need to be split (by the left implication or the right tensor rule), the prover checks for each possible split whether the polarity of all the atomic formulae is balanced and gives up on branches where this is not the case.
+
+On the default behaviour, the prover converts the sequent calculus proofs to natural deduction proofs with proof terms, normalises them and any identical proofs (since the mapping from sequent-style proofs to natural deduction proofs is many-to-one). The resulting proofs are written to a latex file which is compiled. You can configure this behaviour with various options.
 
 ## Options
 
@@ -14,7 +16,7 @@ This is a prover for the multiplicative intuitionistic linear logic (with tensor
 | -r | --rescale | Scaling factor for the latex presentation of the proof, useful for big proofs. Default = 0.8 |
 | -d | --dump-cache | Print the cache to `stdout` when done. For debugging |
 | -p | --polarity | Print polarities of atomic formulae in original sequent |
-| -n | --noprune | Do not prune proof search by polarity balance. Mainly useful to test the efficiency of pruning |
+| -n | --no-prune | Do not prune proof search by polarity balance. Mainly useful to test the efficiency of pruning |
 | -l | --latex-off | Do not run latex |
 
 

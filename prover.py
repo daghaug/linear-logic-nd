@@ -136,12 +136,12 @@ class Sequent:
         return self.left == [] and isinstance(self.right, One)
 
     # return a proof tree reducing the formula on the right
-    def right_reduce(self):
+    def right_reduce(self, prune=True):
         # G, A |- B
         # ---------
         # G |- A -o B
         if isinstance(self.right, Implication):
-            return filter(lambda x: x[1].balanced(), [["RightImp", Sequent(self.left + [self.right.antecedent], self.right.consequent)]])
+            return [["RightImp", Sequent(self.left + [self.right.antecedent], self.right.consequent)]]
 
         # G |- A   D |- B
         # ---------------
@@ -149,9 +149,12 @@ class Sequent:
         elif isinstance(self.right, Tensor):
             A = self.right.first
             B = self.right.second
-            return filter(lambda x: x[1].balanced(), [["RightTensor", Sequent(gamma, A), Sequent(delta, B)] for (gamma, delta) in Sequent.split_list(self.left)])
+            if prune:
+                return filter(lambda x: x[1].balanced(), [["RightTensor", Sequent(gamma, A), Sequent(delta, B)] for (gamma, delta) in Sequent.split_list(self.left)])
+            else:
+                return [["RightTensor", Sequent(gamma, A), Sequent(delta, B)] for (gamma, delta) in Sequent.split_list(self.left)]
 
-    def left_reduce(self, i):
+    def left_reduce(self, i, prune=True):
         # G |- A     D, B |- C
         # --------------------
         #  G, A -o B, D |- C
@@ -159,7 +162,10 @@ class Sequent:
             A = self.left[i].antecedent
             B = self.left[i].consequent
             new_left = self.left[0:i] + self.left[i+1:]
-            return [["LeftImp", Sequent(gamma, A), Sequent(delta + [B], self.right)] for (gamma, delta) in Sequent.split_list(new_left)]
+            if prune:
+                return filter(lambda x: x[1].balanced(), [["LeftImp", Sequent(gamma, A), Sequent(delta + [B], self.right)] for (gamma, delta) in Sequent.split_list(new_left)])
+            else:
+                return [["LeftImp", Sequent(gamma, A), Sequent(delta + [B], self.right)] for (gamma, delta) in Sequent.split_list(new_left)]
 
         # G, A, B  |- C
         # ---------------
@@ -181,7 +187,7 @@ class Sequent:
 
     # iterate over all complex formulae in the sequent and start
     # proofs from them.
-    def prove(self):
+    def prove(self, prune=True):
         # look up if we already did this
         if self.to_s in Sequent.cache:
             return Sequent.cache[self.to_s]
@@ -199,15 +205,15 @@ class Sequent:
         # else, reduce at all possible points left and right
         for i, l in enumerate(self.left):
             if not isinstance(l, Atom):
-                proofs += self.left_reduce(i)
+                proofs += self.left_reduce(i, prune)
         if not isinstance(self.right, Atom) and not isinstance(self.right, One):
-            proofs += self.right_reduce()
+            proofs += self.right_reduce(prune)
         # if no reduction is possible, we have a failed proof, so
         # nothing gets added to the proof list
         # Now, recurse on the non-terminated trees we have
         proof_trees = []
         for proof in proofs:
-            proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove() for c in proof[1:]])]
+            proof_trees += [SequentTree(self, proof[0], list(children)) for children in product(*[c.prove(prune) for c in proof[1:]])]
         Sequent.cache[self.to_s] = proof_trees
         return proof_trees
 
@@ -481,10 +487,13 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
     parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'), default='proof.tex')
     parser.add_argument('-s', '--sequents', action = 'store_true', default = False)
+    parser.add_argument('-q', '--only_sequents', action = 'store_true', default = False)
     parser.add_argument('-a', '--all', action = 'store_true', default = False)
     parser.add_argument('-r', '--rescale', default=0.8)
     parser.add_argument('-d', '--dump-cache', action = 'store_true', default = False)
     parser.add_argument('-p', '--polarity', action = 'store_true', default = False)
+    parser.add_argument('-n', '--noprune', action = 'store_true', default = False)
+    parser.add_argument('-l', '--latex-off', action = 'store_true', default = False)
 
     args = parser.parse_args()
 
@@ -502,7 +511,7 @@ if __name__ == "__main__":
         print(f"Goal:\t\t", r.to_s, "\t\t", r.polarity())
         print("Sequent polarities", s.polarity())
 
-    proofs = s.prove()
+    proofs = s.prove(not args.noprune)
     print("Done", file=sys.stderr)
 
     if proofs == []:
@@ -518,14 +527,17 @@ if __name__ == "__main__":
         args.outfile.write("\\usepackage[vmargin=1cm,hmargin=1cm]{geometry}")
         args.outfile.write("\\begin{document}\n")
 
-        if args.sequents:
+        if args.sequents or args.only_sequents:
             for i, p in enumerate(proofs):
                 args.outfile.write(f"\\noindent Sequent calculus proof nr. {i+1}\\\\")
                 args.outfile.write(p.latex_tree())
-        print("Converting to natural deduction...", file=sys.stderr)
-        nd_trees = [p.to_nd().assign_terms() for p in proofs]
-        print("Done", file=sys.stderr)
-        if not args.all:
+        if args.only_sequents:
+            nd_trees = []
+        else:
+            print("Converting to natural deduction...", file=sys.stderr)
+            nd_trees = [p.to_nd().assign_terms() for p in proofs]
+            print("Done", file=sys.stderr)
+        if not args.only_sequents and not args.all:
             print("Normalizing...", file=sys.stderr)
             nd_trees = NDTree.reduce_proofs(nd_trees)
             print("Done", file=sys.stderr)
@@ -539,5 +551,7 @@ if __name__ == "__main__":
         if args.dump_cache:
             print(Sequent.cache, file=sys.stderr)
 
-        os.system(f"pdflatex {args.outfile.name}")
-        print(f"Proof(s) written to {args.outfile.name} and compiled with latex", file=sys.stderr)
+        if not args.latex_off:
+            os.system(f"pdflatex {args.outfile.name}")
+
+        print(f"Proof(s) written to {args.outfile.name}", file=sys.stderr)

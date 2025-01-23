@@ -9,10 +9,13 @@ This is a prover for the multiplicative intuitionistic linear logic (with tensor
 | -i | --infile | File which holds the sequent to be proven. Default = `sys.stdin`|
 | -o | --outfile | Latex file to which the proof is written. Default = `proof.tex` |
 | -s | --sequents | Prints the original sequent calculus proofs too. |
+| -q | --only-sequents | Print *only* the sequent calculus proofs |
 | -a | --all | Prints all the natural deduction proofs (no normalisation) |
 | -r | --rescale | Scaling factor for the latex presentation of the proof, useful for big proofs. Default = 0.8 |
 | -d | --dump-cache | Print the cache to `stdout` when done. For debugging |
 | -p | --polarity | Print polarities of atomic formulae in original sequent |
+| -n | --noprune | Do not prune proof search by polarity balance. Mainly useful to test the efficiency of pruning |
+| -l | --latex-off | Do not run latex |
 
 
 ## Syntax

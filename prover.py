@@ -55,6 +55,9 @@ class One(Formula):
     def to_latex(self):
         return "1"
 
+    def polarity(self):
+        return []
+
 class Atom(Formula):
     def __init__(self, string, term = None):
         self.to_s = string
@@ -62,6 +65,9 @@ class Atom(Formula):
 
     def to_latex(self):
         return self.to_s
+
+    def polarity(self):
+        return [(self.to_s, 1)]
 
 class Tensor(Formula):
     def __init__(self, first, second, term = None):
@@ -73,6 +79,9 @@ class Tensor(Formula):
     def to_latex(self):
         return "(" + self.first.to_latex() + " \\otimes " + self.second.to_latex() + ")"
 
+    def polarity(self):
+        return self.first.polarity() + self.second.polarity()
+
 class Implication(Formula):
     def __init__(self, antecedent, consequent, term = None):
         self.antecedent = Formula.new(antecedent)
@@ -82,6 +91,9 @@ class Implication(Formula):
 
     def to_latex(self):
         return "(" + self.antecedent.to_latex() + " \\multimap " + self.consequent.to_latex() + ")"
+
+    def polarity(self):
+        return [(s, -p) for (s, p) in self.antecedent.polarity()] + self.consequent.polarity()
 
 class Sequent:
     def __init__(self, left, right):
@@ -99,6 +111,24 @@ class Sequent:
     def to_latex(self):
         return ",".join(l.to_latex() for l in self.left) + " \\vdash " + self.right.to_latex()
 
+    def polarity(self):
+        atomic_polarities = sum([f.polarity() for f in self.left], []) + [(s, -p) for (s, p) in self.right.polarity()]
+        total_polarities = {}
+        for (s, p) in atomic_polarities:
+            if s in total_polarities:
+                total_polarities[s] += p
+            else:
+                total_polarities[s] = p
+        return total_polarities
+
+    # Return +true+ if there are equal numbers of positive and
+    # negative occurrences for all atomic formulae in the
+    # sequent. Only such sequents can ever be proven. This is used for
+    # pruning when splitting assumptions in the left implication and
+    # right tensor rules.
+    def balanced(self):
+        return all(v == 0 for v in self.polarity().values())
+
     def is_axiom(self):
         return len(self.left) == 1 and self.left[0] == self.right
 
@@ -111,14 +141,15 @@ class Sequent:
         # ---------
         # G |- A -o B
         if isinstance(self.right, Implication):
-            return [["RightImp", Sequent(self.left + [self.right.antecedent], self.right.consequent)]]
+            return filter(lambda x: x[1].balanced(), [["RightImp", Sequent(self.left + [self.right.antecedent], self.right.consequent)]])
+
         # G |- A   D |- B
         # ---------------
         # G, D |- A x B
         elif isinstance(self.right, Tensor):
             A = self.right.first
             B = self.right.second
-            return [["RightTensor", Sequent(gamma, A), Sequent(delta, B)] for (gamma, delta) in Sequent.split_list(self.left)]
+            return filter(lambda x: x[1].balanced(), [["RightTensor", Sequent(gamma, A), Sequent(delta, B)] for (gamma, delta) in Sequent.split_list(self.left)])
 
     def left_reduce(self, i):
         # G |- A     D, B |- C
@@ -129,6 +160,7 @@ class Sequent:
             B = self.left[i].consequent
             new_left = self.left[0:i] + self.left[i+1:]
             return [["LeftImp", Sequent(gamma, A), Sequent(delta + [B], self.right)] for (gamma, delta) in Sequent.split_list(new_left)]
+
         # G, A, B  |- C
         # ---------------
         # G, A x B |- C
@@ -137,6 +169,7 @@ class Sequent:
             B = self.left[i].second
             G = self.left[0:i] + self.left[i+1:]
             return [["LeftTensor", Sequent(G + [A, B], self.right)]]
+
         # G |- C
         # G, 1 |- C
         elif isinstance(self.left[i], One):
@@ -451,6 +484,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--all', action = 'store_true', default = False)
     parser.add_argument('-r', '--rescale', default=0.8)
     parser.add_argument('-d', '--dump-cache', action = 'store_true', default = False)
+    parser.add_argument('-p', '--polarity', action = 'store_true', default = False)
 
     args = parser.parse_args()
 
@@ -462,6 +496,11 @@ if __name__ == "__main__":
     s = Sequent(l, r)
     print(f"Searching a proof of {s.to_s}...")
 
+    if args.polarity:
+        for i, f in enumerate(l):
+            print(f"Assumption {i+1}:\t", f.to_s, "\t\t", f.polarity())
+        print(f"Goal:\t\t", r.to_s, "\t\t", r.polarity())
+        print("Sequent polarities", s.polarity())
 
     proofs = s.prove()
     print("Done", file=sys.stderr)

@@ -289,7 +289,7 @@ class ProofTree:
             elif isinstance(self, SequentTree):
                 inf_rule = "\\UnaryInfC"
         # replace star with \star (a little hack to avoid accidental capture in the replacement done by TensorElim)
-        term = self.term().replace("}star", "}\\star")
+        term = self.term.replace("}star", "}\\star")
         if term != "":
             term = term + " : "
         formula = term + self.node.to_latex()
@@ -309,6 +309,7 @@ class NDTree(ProofTree):
         self.rule = rule
         self.children = children
         self.hypothesis = hypothesis
+        self.term = None
 
     next_hypothesis_index = 1
 
@@ -329,11 +330,6 @@ class NDTree(ProofTree):
         term = "X_{" + str(NDTree.next_term) + "}"
         NDTree.next_term += 1
         return term
-
-    def assign_terms(self):
-        NDTree.reset_term_index()
-        self.term()
-        return self
 
     def leaf_nodes(self):
         if self.children == []:
@@ -368,47 +364,59 @@ class NDTree(ProofTree):
         return super().to_latex()
 
     # ideally, check for alpha equivalence here
-    def is_identical(self, other_nd_tree):
-        return self.term() == other_nd_tree.term()
+    # Also, maybe check that the term is not None?
+    def is_identical(self, other_nd_tree, reduce_tensor):
+        return self.term == other_nd_tree.term
 
 
     @classmethod
-    def reduce_proofs(cls, nd_trees):
+    def reduce_proofs(cls, nd_trees, reduce_tensor):
         res = []
         for nd_tree in nd_trees:
-            if nd_tree.is_normal() and not any(t.is_identical(nd_tree) for t in res):
+            if nd_tree.is_normal() and not any(t.is_identical(nd_tree, reduce_tensor) for t in res):
                 res.append(nd_tree)
         return res
 
-    def term(self):
+    def assign_terms(self, reduce_tensor):
+        NDTree.reset_term_index()
+        self.assign_term(reduce_tensor)
+        return self
+
+    # This computes term for all *formulae* objects in the tree and stores that as proof tree's term
+    def assign_term(self, reduce_tensor):
         if self.children == [] and self.node.term is not None:
             pass
         elif self.children == []:
             self.node.term = NDTree.get_next_term()
         elif self.rule == "ImpElim":
             # the major premise is the 0'th child
-            self.node.term = self.children[0].term() + "(" + self.children[1].term() + ")"
+            self.node.term = self.children[0].assign_term(reduce_tensor) + "(" + self.children[1].assign_term(reduce_tensor) + ")"
         elif self.rule.startswith("ImpIntro-"):
             idx = int(self.rule.split("-")[1])
-            var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].term()
-            self.node.term = f"\\lambda {var}.{self.children[0].term()}"
+            var = [l for l in self.leaf_nodes() if l.hypothesis == idx][0].assign_term(reduce_tensor)
+            self.node.term = f"\\lambda {var}.{self.children[0].assign_term(reduce_tensor)}"
         elif self.rule == "TensorIntro":
-            self.node.term = f"\\langle {self.children[0].term()}, {self.children[1].term()}\\rangle"
+            self.node.term = f"\\langle {self.children[0].assign_term(reduce_tensor)}, {self.children[1].assign_term(reduce_tensor)}\\rangle"
         elif self.rule.startswith("TensorElim-"):
-            a = self.children[0].term()
+            a = self.children[0].assign_term(reduce_tensor)
             idx1, idx2 = [int(x) for x in self.rule.split("-")[-2:]]
-            var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].term()
-            var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].term()
-            self.node.term = self.children[1].term().replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
+            var1 = [l for l in self.leaf_nodes() if l.hypothesis == idx1][0].assign_term(reduce_tensor)
+            var2 = [l for l in self.leaf_nodes() if l.hypothesis == idx2][0].assign_term(reduce_tensor)
+            if reduce_tensor:
+                self.node.term = self.children[1].assign_term(reduce_tensor).replace(var1, ("\\texttt{fst($" + a + "$)}")).replace(var2, ("\\texttt{snd($" + a + "$)}"))
+            else:
+                self.node.term = "\\texttt{let}\\ " + a + "\\ \\texttt{be}\\ \\langle " + var1 + "," + var2 + "\\rangle\\ \\texttt{in}\\ " +  self.children[1].assign_term(reduce_tensor)
+            
         # as a little hack, we use *star* here, and replace it with
         # \\star only at the end, to avoid it being falsely replaced
-        # by the TensorElim- term rule
+        # by the TensorElim- term rule if reduction is active
         elif self.rule == "OneElim":
-            self.node.term = "\\texttt{let } " + self.children[0].term() + "\\texttt{ be }" + "star" + "\\texttt{ in } " + self.children[1].term()
+            self.node.term = "\\texttt{let } " + self.children[0].assign_term(reduce_tensor) + "\\ \\texttt{ be }" + "star" + "\\ \\texttt{ in }\\ " + self.children[1].assign_term(reduce_tensor)
         # We do not need a rule for OneIntro, as this will be taken care of by the formula to term map
         else:
             raise Exception("What?")
-        return self.node.term
+        self.term = self.node.term
+        return self.term
 
     def label_to_latex(self):
         return super().label_to_latex()
@@ -420,16 +428,16 @@ class SequentTree(ProofTree):
         self.rule = rule
         self.children = children
         self.to_s = self.node.to_s + f"\n----{self.rule}----\n" + "\t".join(c.to_s for c in self.children)
-
+        self.term = ""
+        
     def label_to_latex(self):
         return super().label_to_latex()
 
     def to_latex(self):
         return super().to_latex()
 
-    # No proof terms for sequents
-    def term(self):
-        return ""
+    def assign_term(self):
+        pass
 
     # Extracts the active implication. Should only be called on proof
     # tree nodes with the left implication rule.
@@ -501,7 +509,8 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--polarity', action = 'store_true', default = False)
     parser.add_argument('-n', '--no-prune', action = 'store_true', default = False)
     parser.add_argument('-l', '--latex-off', action = 'store_true', default = False)
-
+    parser.add_argument('-t', '--tensor-reduction', action = 'store_true', default = False)
+    
     args = parser.parse_args()
 
 
@@ -542,11 +551,11 @@ if __name__ == "__main__":
             nd_trees = []
         else:
             print("Converting to natural deduction...", file=sys.stderr)
-            nd_trees = [p.to_nd().assign_terms() for p in proofs]
+            nd_trees = [p.to_nd().assign_terms(args.tensor_reduction) for p in proofs]
             print("Done", file=sys.stderr)
         if not args.only_sequents and not args.all:
             print("Normalizing...", file=sys.stderr)
-            nd_trees = NDTree.reduce_proofs(nd_trees)
+            nd_trees = NDTree.reduce_proofs(nd_trees, args.tensor_reduction)
             print("Done", file=sys.stderr)
         for i, nd_tree in enumerate(nd_trees):
             args.outfile.write(f"\n\\noindent {'N' if args.all else 'Normalised n'}atural deduction proof nr {i+1}\\\\\n")

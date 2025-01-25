@@ -33,9 +33,3 @@ The prover expects a comma separated list of linear logic formulae. The last for
 `echo "(A * 1) -o A" | python prover.py` proves `(A * 1) -o A` from no premises. 
 
 `echo "V: E1 -o E2 -o T, Q1:(E1 -o T) -o T, Q2:(E2 -o (T * l)) -o T, L: E1 -o (E1 * l), T" | python prover.py ` proves `T` from `E1 -o E2 -o T`, `(E1 -o T) -o T`, `(E2 -o (T * l)) -o T` and `E1 -o (E1 * l)`. 
-
-## Known issues
-
-The normalisation in some cases does not catch alpha equivalent proofs, e.g. the first two proofs of this one.
-
-`echo "A*(B-oC), B-o(A*C)" | prover.py -s`.

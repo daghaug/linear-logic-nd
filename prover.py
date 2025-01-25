@@ -1,8 +1,9 @@
+#! /usr/bin/env python
+
 from pyparsing import Word, infixNotation, alphas, alphanums, opAssoc
 from itertools import product
 import os, sys
 import argparse
-from copy import deepcopy
 
 
 class Formula:
@@ -22,7 +23,7 @@ class Formula:
             formula = formula.strip()
         else:
             formula = literal
-            # cast the argument as a list if it is a string
+        # cast the argument as a list if it is a string
         if type(formula) == str:
             formula = Formula.expr.parseString(formula, parseAll=True).asList()[0]
         # If it is an atom or the constant 1, the parse result will be a string again
@@ -125,7 +126,9 @@ class Sequent:
     # negative occurrences for all atomic formulae in the
     # sequent. Only such sequents can ever be proven. This is used for
     # pruning when splitting assumptions in the left implication and
-    # right tensor rules.
+    # right tensor rules.  NB: if we ever extend to additive
+    # connectives, this must be changed as the heuristic only holds
+    # for sequents with only multiplicative connectives
     def balanced(self):
         return all(v == 0 for v in self.polarity().values())
 
@@ -297,14 +300,6 @@ class ProofTree:
 
 class NDTree(ProofTree):
 
-    next_hypothesis_index = 1
-
-    @classmethod
-    def get_next_index(cls):
-        i = NDTree.next_hypothesis_index
-        NDTree.next_hypothesis_index += 1
-        return i
-
     def __init__(self, formula, rule, children, hypothesis=None):
         assert isinstance(formula, Formula)
         assert isinstance(children, list)
@@ -315,16 +310,28 @@ class NDTree(ProofTree):
         self.children = children
         self.hypothesis = hypothesis
 
+    next_hypothesis_index = 1
+
+    @classmethod
+    def get_next_index(cls):
+        i = NDTree.next_hypothesis_index
+        NDTree.next_hypothesis_index += 1
+        return i
 
     next_term = 1
 
+    @classmethod
+    def reset_term_index(cls):
+        NDTree.next_term = 1
+
+    @classmethod
     def get_next_term(cls):
         term = "X_{" + str(NDTree.next_term) + "}"
         NDTree.next_term += 1
         return term
 
     def assign_terms(self):
-        NDTree.next_term = 1
+        NDTree.reset_term_index()
         self.term()
         return self
 
@@ -377,7 +384,7 @@ class NDTree(ProofTree):
         if self.children == [] and self.node.term is not None:
             pass
         elif self.children == []:
-            self.node.term = self.get_next_term()
+            self.node.term = NDTree.get_next_term()
         elif self.rule == "ImpElim":
             # the major premise is the 0'th child
             self.node.term = self.children[0].term() + "(" + self.children[1].term() + ")"
@@ -461,7 +468,7 @@ class SequentTree(ProofTree):
             D1 = self.children[1].to_nd()
             a_point = D1.find_formula_on_leaf_node(implication.consequent)
             a_point.append_children([NDTree(implication, "", []), D0], "ImpElim")
-            return deepcopy(D1) #
+            return D1
         if self.rule == "RightTensor":
             D0 = self.children[0].to_nd()
             D1 = self.children[1].to_nd()

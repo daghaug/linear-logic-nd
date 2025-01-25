@@ -18,7 +18,7 @@ On the default behaviour, the prover converts the sequent calculus proofs to nat
 | -p | --polarity | Print polarities of atomic formulae in original sequent |
 | -n | --no-prune | Do not prune proof search by polarity balance. Mainly useful to test the efficiency of pruning |
 | -l | --latex-off | Do not run latex |
-
+| -t | --tensor-reduction | Reduce proof terms from tensor elimination. This leads to fewer distinct proofs/readings. Useful for some linguistic applications |
 
 ## Syntax
 

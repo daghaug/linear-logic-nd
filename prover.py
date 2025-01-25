@@ -14,14 +14,27 @@ class Formula:
         [("-o", 2, opAssoc.RIGHT),
          ("*", 2, opAssoc.RIGHT)])
 
+    next_term = 1
+
+    @classmethod
+    def reset_term_index(cls):
+        Formula.next_term = 1
+
+    @classmethod
+    def get_next_term(cls):
+        term = "X_{" + str(Formula.next_term) + "}"
+        Formula.next_term += 1
+        return term
+
     @staticmethod
-    def new(literal, term=None):
+    def new(literal):
         formula = ""
         if ":" in literal:
             term, formula = literal.split(":")
             term = term.strip()
             formula = formula.strip()
         else:
+            term = Formula.get_next_term()
             formula = literal
         # cast the argument as a list if it is a string
         if type(formula) == str:
@@ -319,18 +332,6 @@ class NDTree(ProofTree):
         NDTree.next_hypothesis_index += 1
         return i
 
-    next_term = 1
-
-    @classmethod
-    def reset_term_index(cls):
-        NDTree.next_term = 1
-
-    @classmethod
-    def get_next_term(cls):
-        term = "X_{" + str(NDTree.next_term) + "}"
-        NDTree.next_term += 1
-        return term
-
     def leaf_nodes(self):
         if self.children == []:
             return [self]
@@ -378,7 +379,6 @@ class NDTree(ProofTree):
         return res
 
     def assign_terms(self, reduce_tensor):
-        NDTree.reset_term_index()
         self.assign_term(reduce_tensor)
         return self
 
@@ -387,7 +387,7 @@ class NDTree(ProofTree):
         if self.children == [] and self.node.term is not None:
             pass
         elif self.children == []:
-            self.node.term = NDTree.get_next_term()
+            raise Exception("Leaf node without term!")
         elif self.rule == "ImpElim":
             # the major premise is the 0'th child
             self.node.term = self.children[0].assign_term(reduce_tensor) + "(" + self.children[1].assign_term(reduce_tensor) + ")"
